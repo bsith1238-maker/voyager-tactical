@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#111">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Voyager Tactical">
+<title>USS Voyager — LCARS Tactical</title>
+<style>
+:root{
+ --bg:#08090d;--panel:#17191f;--panel2:#22242b;--orange:#f2a365;--peach:#f6c18d;
+ --purple:#b07cff;--lav:#c9a7ff;--red:#ff6868;--blue:#67c7ff;--green:#70e090;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;width:100%;height:100%;background:var(--bg);color:#eee;font-family:Arial,sans-serif;overflow:hidden}
+button,input{font:inherit}
+button{border:0;cursor:pointer}
+#app{width:100%;height:100%;display:flex;flex-direction:column;padding:10px;gap:8px}
+header{height:64px;display:flex;align-items:center;gap:10px}
+.brand{font-size:24px;font-weight:800;letter-spacing:1px}
+.subtitle{color:#aaa;font-size:12px}
+.topbar{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}
+.btn{background:var(--orange);color:#111;font-weight:800;padding:9px 12px;border-radius:5px}
+.btn.alt{background:var(--purple);color:#fff}.btn.red{background:var(--red)}.btn.dark{background:#333;color:#fff}
+main{min-height:0;flex:1;display:grid;grid-template-columns:1.05fr 1fr 1.05fr;gap:8px}
+.panel{background:var(--panel);border:2px solid #333;border-radius:8px;padding:10px;min-height:0;overflow:auto}
+h2{font-size:14px;color:var(--orange);margin:0 0 8px;letter-spacing:1px}
+h3{font-size:12px;color:#aaa;margin:9px 0 5px}
+.grid4{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.card{background:var(--panel2);padding:8px;border-radius:5px}
+.card b{display:block;font-size:12px;margin-bottom:4px}
+.bar{height:12px;background:#090a0d;border-radius:6px;overflow:hidden}.fill{height:100%;width:100%;transition:.2s}
+.shields .fill{background:var(--blue)}.hull .fill{background:var(--green)}
+.stat{display:flex;justify-content:space-between;font-size:12px;margin:3px 0}
+.weaponGrid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.weapon{min-height:55px}.weapon small{display:block;color:#aaa}
+.slider{width:100%}
+.freq{display:flex;align-items:center;gap:8px}
+.log{font-family:monospace;font-size:11px;line-height:1.35;background:#090a0d;border-radius:5px;padding:7px;min-height:120px;max-height:180px;overflow:auto}
+#status{color:var(--green);font-weight:700}
+#targetName{font-size:20px;color:var(--red);font-weight:800}
+#scan{white-space:pre-line;font-size:12px;color:#ddd}
+.footer{font-size:11px;color:#777;text-align:center;height:18px}
+.disabled{opacity:.4;pointer-events:none}
+@media (orientation:portrait){
+ body{overflow:auto}#app{min-height:100%;height:auto;overflow:auto}
+ main{grid-template-columns:1fr;overflow:visible}.panel{max-height:none}
+ header{height:auto;flex-wrap:wrap}.topbar{margin-left:0;width:100%}
+}
+@media (orientation:landscape) and (max-height:600px){
+ #app{padding:5px;gap:4px}header{height:42px}.brand{font-size:18px}
+ .btn{padding:6px 8px;font-size:11px}.panel{padding:7px}
+ h2{margin-bottom:5px}.log{min-height:75px;max-height:100px}
+}
+</style>
+</head>
+<body>
+<div id="app">
+<header>
+  <div>
+    <div class="brand">USS VOYAGER</div>
+    <div class="subtitle">LCARS TACTICAL CONTROL • DELTA QUADRANT SIMULATION</div>
+  </div>
+  <div class="topbar">
+    <button class="btn" onclick="togglePause()" id="pauseBtn">PAUSE</button>
+    <button class="btn alt" onclick="fullscreen()">FULLSCREEN</button>
+    <button class="btn dark" onclick="newScenario()">NEW SCENARIO</button>
+  </div>
+</header>
+
+<main>
+<section class="panel">
+ <h2>DEFENSIVE SYSTEMS</h2>
+ <div class="grid4" id="shieldCards"></div>
+ <h3>SHIELD POWER</h3>
+ <input class="slider" id="shieldPower" type="range" min="0" max="100" value="55" oninput="setPower('shield',this.value)">
+ <div class="stat"><span>Shield power</span><b id="shieldPowerVal">55%</b></div>
+ <div class="grid4">
+   <button class="btn" onclick="balance()">BALANCE</button>
+   <button class="btn alt" onclick="remodulate()">REMODULATE</button>
+ </div>
+ <h3>SHIELD FREQUENCY</h3>
+ <div class="freq"><input class="slider" id="freq" type="range" min="280" max="360" value="320" oninput="updateFreq(this.value)"><b id="freqVal">320 MHz</b></div>
+ <div class="stat"><span>Auto modulation</span><b id="auto">OFF</b></div>
+ <button class="btn dark" style="width:100%;margin-top:5px" onclick="toggleAuto()">TOGGLE AUTO-MODULATION</button>
+ <h3>EMERGENCY</h3>
+ <button class="btn red" style="width:100%" onclick="emergency()">EMERGENCY POWER</button>
+ <button class="btn dark" style="width:100%;margin-top:5px" onclick="repair()">DAMAGE CONTROL / REPAIR</button>
+</section>
+
+<section class="panel">
+ <h2>TACTICAL</h2>
+ <div class="card">
+  <div class="stat"><span>STATUS</span><b id="status">COMBAT READY</b></div>
+  <div id="targetName">UNKNOWN VESSEL</div>
+  <div class="stat"><span>Enemy shields</span><b id="enemyShield">100%</b></div>
+  <div class="bar shields"><div class="fill" id="enemyShieldBar"></div></div>
+  <div class="stat"><span>Enemy hull</span><b id="enemyHull">100%</b></div>
+  <div class="bar hull"><div class="fill" id="enemyHullBar"></div></div>
+ </div>
+ <h3>WEAPONS</h3>
+ <div class="weaponGrid">
+  <button class="btn weapon" onclick="fire('phaser')">PHASER<br><small>Focused beam</small></button>
+  <button class="btn weapon" onclick="fire('burst')">PHASER BURST<br><small>Wide energy burst</small></button>
+  <button class="btn alt weapon" onclick="fire('photon')">PHOTON TORPEDO<br><small>Heavy explosive</small></button>
+  <button class="btn alt weapon" onclick="fire('quantum')">QUANTUM TORPEDO<br><small>High-yield</small></button>
+ </div>
+ <h3>TACTICAL SCAN</h3>
+ <button class="btn dark" style="width:100%" onclick="scan()">RUN TACTICAL SCAN</button>
+ <div class="card" style="margin-top:6px"><div id="scan">No scan data.</div></div>
+ <h3>POWER DISTRIBUTION</h3>
+ <div id="powerRows"></div>
+</section>
+
+<section class="panel">
+ <h2>TACTICAL LOG</h2>
+ <div class="log" id="log"></div>
+ <h3>SHIP CONDITION</h3>
+ <div class="stat"><span>Hull integrity</span><b id="hull">100%</b></div>
+ <div class="bar hull"><div class="fill" id="hullBar"></div></div>
+ <div class="stat"><span>Weapons</span><b id="weapons">100%</b></div>
+ <div class="bar"><div class="fill" id="weaponsBar" style="background:var(--orange)"></div></div>
+ <div class="stat"><span>Auxiliary</span><b id="aux">100%</b></div>
+ <div class="bar"><div class="fill" id="auxBar" style="background:var(--purple)"></div></div>
+ <h3>SIMULATION</h3>
+ <div class="stat"><span>Enemy fire</span><b id="enemyFire">ACTIVE</b></div>
+ <div class="stat"><span>Time</span><b id="timer">00:00</b></div>
+ <button class="btn dark" style="width:100%;margin-top:8px" onclick="clearLog()">CLEAR LOG</button>
+</section>
+</main>
+<div class="footer">Rotate your device for landscape tactical mode • Fullscreen availability depends on the browser</div>
+</div>
+
+<script>
+const shieldNames=["FORWARD","AFT","PORT","STARBOARD"];
+let S={shields:[100,100,100,100],hull:100,weapons:100,aux:100,enemyShield:100,enemyHull:100,
+freq:320,auto:false,paused:false,elapsed:0,power:{shield:55,weapons:30,engines:10,aux:5},enemyFreq:320};
+let timerInt,enemyInt;
+
+function $(id){return document.getElementById(id)}
+function log(t){let d=new Date().toLocaleTimeString();$("log").innerHTML=`[${d}] ${t}<br>`+$("log").innerHTML}
+function clamp(x,a=0,b=100){return Math.max(a,Math.min(b,x))}
+function render(){
+ $("hull").textContent=Math.round(S.hull)+"%";$("hullBar").style.width=S.hull+"%";
+ $("weapons").textContent=Math.round(S.weapons)+"%";$("weaponsBar").style.width=S.weapons+"%";
+ $("aux").textContent=Math.round(S.aux)+"%";$("auxBar").style.width=S.aux+"%";
+ $("enemyShield").textContent=Math.round(S.enemyShield)+"%";$("enemyShieldBar").style.width=S.enemyShield+"%";
+ $("enemyHull").textContent=Math.round(S.enemyHull)+"%";$("enemyHullBar").style.width=S.enemyHull+"%";
+ $("freqVal").textContent=S.freq+" MHz";$("auto").textContent=S.auto?"ON":"OFF";
+ $("enemyFire").textContent=S.paused?"PAUSED":"ACTIVE";$("pauseBtn").textContent=S.paused?"RESUME":"PAUSE";
+ const cards=$("shieldCards");cards.innerHTML="";
+ S.shields.forEach((v,i)=>cards.innerHTML+=`<div class="card"><b>${shieldNames[i]}</b><div class="stat"><span>Integrity</span><b>${Math.round(v)}%</b></div><div class="bar shields"><div class="fill" style="width:${v}%"></div></div></div>`);
+ const rows=$("powerRows");rows.innerHTML="";
+ Object.keys(S.power).forEach(k=>rows.innerHTML+=`<div class="stat"><span>${k.toUpperCase()}</span><b>${S.power[k]}%</b></div>`);
+}
+function setPower(k,v){
+ v=+v;let old=S.power[k],delta=v-old;if(delta===0)return;
+ let others=Object.keys(S.power).filter(x=>x!==k),total=100;
+ let available=total-v;
+ let otherSum=others.reduce((a,x)=>a+S.power[x],0);
+ if(otherSum>available){let scale=available/otherSum;others.forEach(x=>S.power[x]=Math.floor(S.power[x]*scale))}
+ S.power[k]=v;render()
+}
+function balance(){let v=Math.round(S.power.shield);S.shields=S.shields.map(()=>clamp(v+10));log("Shield harmonics balanced.");render()}
+function remodulate(){S.freq=280+Math.floor(Math.random()*81);$("freq").value=S.freq;S.shields=S.shields.map(x=>clamp(x+8));log("Shields remodulated to "+S.freq+" MHz.");render()}
+function updateFreq(v){S.freq=+v;render()}
+function toggleAuto(){S.auto=!S.auto;log("Automatic shield modulation "+(S.auto?"enabled.":"disabled."));render()}
+function emergency(){S.aux=100;S.weapons=clamp(S.weapons+12);S.shields=S.shields.map(x=>clamp(x+12));log("Emergency power routed to defensive and weapons systems.");render()}
+function repair(){if(S.aux<10){log("Insufficient auxiliary power for repairs.");return}S.aux=clamp(S.aux-10);S.hull=clamp(S.hull+8);S.shields=S.shields.map(x=>clamp(x+4));log("Damage-control teams completed emergency repairs.");render()}
+function fire(type){
+ if(S.weapons<5){log("WEAPONS OFFLINE — insufficient power.");return}
+ let cost={phaser:3,burst:7,photon:10,quantum:16}[type];S.weapons=clamp(S.weapons-cost);
+ let dmg={phaser:5,burst:10,photon:18,quantum:28}[type];
+ let blocked=type==="photon"||type==="quantum"?0.35:Math.max(.05,1-Math.abs(S.freq-S.enemyFreq)/80);
+ let actual=dmg*blocked;S.enemyShield=clamp(S.enemyShield-actual);
+ if(S.enemyShield<=0){S.enemyHull=clamp(S.enemyHull-dmg*.45);if(S.enemyHull<=0){$("status").textContent="TARGET DESTROYED";log("Enemy vessel destroyed.");S.paused=true}}
+ log(type.toUpperCase()+" fired. "+Math.round(actual)+" shield damage.");
+ render()
+}
+function enemyAttack(){
+ if(S.paused||S.enemyHull<=0)return;
+ let q=Math.floor(Math.random()*4),d=7+Math.random()*15;
+ if(S.auto&&Math.random()<.45){S.freq=S.enemyFreq+Math.floor(Math.random()*11-5);$("freq").value=S.freq}
+ let modulation=Math.max(.15,1-Math.abs(S.freq-S.enemyFreq)/70);
+ let hit=d*modulation;
+ S.shields[q]=clamp(S.shields[q]-hit);
+ if(S.shields[q]<=0){S.hull=clamp(S.hull-hit*.45);log("Enemy hit "+shieldNames[q]+" shield; shield collapse caused hull damage.")}else log("Enemy weapon struck "+shieldNames[q]+" shields for "+Math.round(hit)+" damage.");
+ if(S.hull<=0){$("status").textContent="SHIP DISABLED";S.paused=true;log("CRITICAL: Voyager disabled.");}
+ render()
+}
+function scan(){
+ $("scan").textContent=`TARGET: ${$("targetName").textContent}
+SHIELDS: ${Math.round(S.enemyShield)}%
+HULL: ${Math.round(S.enemyHull)}%
+EST. WEAPON FREQUENCY: ${S.enemyFreq} MHz
+TACTICAL NOTE: ${S.enemyFreq===S.freq?"Current frequency is closely matched.":"Consider remodulating shields."}`;
+ log("Tactical scan complete.")
+}
+function togglePause(){S.paused=!S.paused;log(S.paused?"Enemy fire paused.":"Enemy fire resumed.");render()}
+function clearLog(){$("log").innerHTML=""}
+function newScenario(){
+ const names=["Kazon Raider","Hirogen Hunter","Vaadwaur Warship","Borg Scout","Malon Freighter","Unknown Delta Quadrant Vessel"];
+ $("targetName").textContent=names[Math.floor(Math.random()*names.length)];
+ S={shields:[100,100,100,100],hull:100,weapons:100,aux:100,enemyShield:100,enemyHull:100,freq:320,auto:false,paused:false,elapsed:0,power:{shield:55,weapons:30,engines:10,aux:5},enemyFreq:280+Math.floor(Math.random()*81)};
+ $("freq").value=320;$("status").textContent="COMBAT READY";$("scan").textContent="No scan data.";log("New tactical scenario initialized.");render()
+}
+async function fullscreen(){
+ const el=document.documentElement;
+ try{if(document.fullscreenElement) await document.exitFullscreen();else if(el.requestFullscreen) await el.requestFullscreen();else log("Browser fullscreen is not available here. Use Add to Home Screen for app-style display on iPad/iPhone.");}
+ catch(e){log("Fullscreen was blocked by the browser. Add this site to your Home Screen for a better app-style view.")}
+}
+function tick(){if(!S.paused){S.elapsed++;let m=String(Math.floor(S.elapsed/60)).padStart(2,"0"),s=String(S.elapsed%60).padStart(2,"0");$("timer").textContent=m+":"+s}}
+setInterval(tick,1000);setInterval(enemyAttack,3500);
+newScenario();
+</script>
+</body>
+</html>
